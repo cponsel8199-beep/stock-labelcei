@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Inventori + Export Excel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-4">
+    <div class="p-1">
+        <img src="cei logo.png" alt="Logo" class="h-16 w-auto object-contain rounded-lg shadow-sm">
+    </div>
+    
+    <div>
+        <h1 class="text-2xl font-black text-slate-800 tracking-tight">PT. CENYANG ELECTRONICS INDONESIA</h1>
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-widest">STOCK LABEL IT</p>
+    </div>
+</div>
+            </div>
+            <button onclick="exportKeExcel()" class="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+                Download Laporan Excel
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-8 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Input Barang Baru</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <input id="namaBarang" type="text" placeholder="Nama Barang" class="border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                        <input id="jumlahBarang" type="number" placeholder="Stok Awal" class="border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                        <select id="satuanBarang" class="border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            <option value="Pcs">Pcs</option>
+                            <option value="Roll">Roll</option>
+                            <option value="Box">Box</option>
+                        </select>
+                        <button onclick="tambahBarangBaru()" class="bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition">Tambah</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h2 class="font-bold text-slate-700">Tabel Stok Barang</h2>
+                        <input type="text" id="inputCari" onkeyup="renderSemua()" placeholder="Cari..." class="border p-2 px-4 rounded-full text-xs w-48 outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <th class="p-5">Barang</th>
+                                    <th class="p-5 text-center">Stok</th>
+                                    <th class="p-5 text-right">Edit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelBody" class="text-sm divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-4">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 h-[650px] flex flex-col">
+                    <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                        <h2 class="font-bold text-slate-700">Riwayat Transaksi</h2>
+                        <button onclick="hapusSeluruhLog()" class="text-[10px] text-rose-500 hover:underline font-bold">Hapus Semua</button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar" id="logKonten"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let dataStok = JSON.parse(localStorage.getItem('db_pro_stok')) || [];
+        let dataLog = JSON.parse(localStorage.getItem('db_pro_log')) || [];
+
+        function renderSemua() {
+            renderTabel();
+            renderLog();
+            saveData();
+        }
+
+        function renderTabel() {
+            const tbody = document.getElementById('tabelBody');
+            const keyword = document.getElementById('inputCari').value.toLowerCase();
+            tbody.innerHTML = '';
+            dataStok.filter(i => i.nama.toLowerCase().includes(keyword)).forEach((item) => {
+                const idx = dataStok.findIndex(b => b.nama === item.nama);
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="p-5 font-bold text-slate-700">${item.nama}<br><span class="text-[9px] font-normal text-slate-400 uppercase">${item.satuan}</span></td>
+                        <td class="p-5 text-center font-black text-indigo-600">${item.jumlah}</td>
+                        <td class="p-5 text-right flex justify-end gap-1">
+                            <button onclick="transaksi(${idx}, 'masuk')" class="bg-emerald-500 text-white p-2 rounded-lg text-[10px] font-bold">+</button>
+                            <button onclick="transaksi(${idx}, 'keluar')" class="bg-rose-500 text-white p-2 rounded-lg text-[10px] font-bold">-</button>
+                            <button onclick="hapusBarang(${idx})" class="p-2 text-slate-300 hover:text-red-500">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderLog() {
+            const container = document.getElementById('logKonten');
+            container.innerHTML = '';
+            [...dataLog].reverse().forEach(log => {
+                const isMasuk = log.tipe === 'masuk';
+                container.innerHTML += `
+                    <div class="p-3 rounded-lg border ${isMasuk ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'} text-xs">
+                        <div class="flex justify-between font-bold ${isMasuk ? 'text-emerald-700' : 'text-rose-700'}">
+                            <span>${isMasuk ? 'BARANG MASUK' : 'BARANG KELUAR'}</span>
+                            <span class="text-[9px] text-slate-400 font-normal">${log.waktu}</span>
+                        </div>
+                        <div class="text-slate-700 font-bold mt-1">${log.nama}</div>
+                        <div>${isMasuk ? '+' : '-'}${log.qty} ${log.satuan}</div>
+                    </div>
+                `;
+            });
+        }
+
+        // FUNGSI EXPORT EXCEL
+        function exportKeExcel() {
+            if (dataStok.length === 0) return alert("Tidak ada data untuk diexport!");
+
+            // 1. Buat data untuk Sheet Stok
+            const sheetStok = dataStok.map(item => ({
+                "Nama Barang": item.nama,
+                "Jumlah Stok": item.jumlah,
+                "Satuan": item.satuan
+            }));
+
+            // 2. Buat data untuk Sheet Riwayat
+            const sheetRiwayat = dataLog.map(log => ({
+                "Waktu": log.waktu,
+                "Jenis": log.tipe.toUpperCase(),
+                "Nama Barang": log.nama,
+                "Jumlah": log.qty,
+                "Satuan": log.satuan
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws1 = XLSX.utils.json_to_sheet(sheetStok);
+            const ws2 = XLSX.utils.json_to_sheet(sheetRiwayat);
+
+            XLSX.utils.book_append_sheet(wb, ws1, "Stok Saat Ini");
+            XLSX.utils.book_append_sheet(wb, ws2, "Riwayat Transaksi");
+
+            // Simpan file
+            XLSX.writeFile(wb, "Laporan_Gudang_" + new Date().toLocaleDateString() + ".xlsx");
+        }
+
+        function transaksi(index, tipe) {
+            const item = dataStok[index];
+            const input = prompt(`Jumlah ${tipe.toUpperCase()}:`);
+            if (input && !isNaN(input)) {
+                const qty = parseInt(input);
+                if (tipe === 'keluar' && qty > item.jumlah) return alert("Stok kurang!");
+                dataStok[index].jumlah += (tipe === 'masuk' ? qty : -qty);
+                dataLog.push({ nama: item.nama, qty, satuan: item.satuan, tipe, waktu: new Date().toLocaleString() });
+                renderSemua();
+            }
+        }
+
+        function tambahBarangBaru() {
+            const n = document.getElementById('namaBarang').value;
+            const j = parseInt(document.getElementById('jumlahBarang').value);
+            const s = document.getElementById('satuanBarang').value;
+            if(n && j >= 0) {
+                dataStok.push({ nama: n, jumlah: j, satuan: s });
+                dataLog.push({ nama: n, qty: j, satuan: s, tipe: 'masuk', waktu: new Date().toLocaleString() });
+                renderSemua();
+                document.getElementById('namaBarang').value = '';
+                document.getElementById('jumlahBarang').value = '';
+            }
+        }
+
+        function hapusSeluruhLog() { if(confirm("Hapus semua riwayat?")) { dataLog = []; renderSemua(); } }
+        function hapusBarang(i) { if(confirm("Hapus barang?")) { dataStok.splice(i,1); renderSemua(); } }
+        function saveData() { localStorage.setItem('db_pro_stok', JSON.stringify(dataStok)); localStorage.setItem('db_pro_log', JSON.stringify(dataLog)); }
+        renderSemua();
+    </script>
+</body>
+</html>
